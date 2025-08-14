@@ -754,15 +754,7 @@ def plot_candles(df: pd.DataFrame, x_range=None):
 				marker=dict(symbol="triangle-down", size=16, color="#dc2626"),
 				showlegend=True))
 	
-	# DEBUG: Her zaman test sinyalleri ekle
-	if len(df) >= 5:
-		test_idx = df.index[-3]  # 3 bar önce
-		test_low = float(df["Low"].iloc[-3])
-		test_high = float(df["High"].iloc[-3])
-		fig.add_trace(go.Scatter(x=[test_idx], y=[test_low - 50], mode="markers", name="TEST-AL",
-			marker=dict(symbol="triangle-up", size=20, color="#00ff00")))
-		fig.add_trace(go.Scatter(x=[test_idx], y=[test_high + 50], mode="markers", name="TEST-SAT", 
-			marker=dict(symbol="triangle-down", size=20, color="#ff0000")))
+
 
 
 	fig.update_layout(
@@ -1122,10 +1114,20 @@ def main():
 		df["sig_buy"] = sig_buy_raw & (~sig_buy_raw.shift(1).fillna(False))
 		df["sig_sell"] = sig_sell_raw & (~sig_sell_raw.shift(1).fillna(False))
 		
-		# DEBUG: Zorla test sinyalleri ekle (geçici)
+		# DEBUG: Gerçek sinyal mantığını test et
 		if len(df) >= 10:
-			df["sig_buy"].iloc[-10] = True  # 10 bar önce AL
-			df["sig_sell"].iloc[-5] = True  # 5 bar önce SAT
+			# EMA kesişimi sinyalleri
+			ema_cross_up = (df["EMA20"] > df["EMA50"]) & (df["EMA20"].shift(1) <= df["EMA50"].shift(1))
+			ema_cross_down = (df["EMA20"] < df["EMA50"]) & (df["EMA20"].shift(1) >= df["EMA50"].shift(1))
+			
+			# Basit AL/SAT mantığı
+			df["sig_buy"] = df["sig_buy"] | ema_cross_up
+			df["sig_sell"] = df["sig_sell"] | ema_cross_down
+			
+			# Son 20 bar'da zorla sinyal ekle
+			if len(df) >= 20:
+				df["sig_buy"].iloc[-15] = True  # 15 bar önce AL
+				df["sig_sell"].iloc[-8] = True   # 8 bar önce SAT
 		
 		# Mumların başlangıç/bitiş noktalarına göre, ATR/price tabanlı dinamik offset ile konumlandır
 		_range = (df["High"] - df["Low"]).fillna(0)
