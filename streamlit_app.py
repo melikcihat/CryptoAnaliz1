@@ -1085,21 +1085,25 @@ def main():
 		macd = ema_fast - ema_slow
 		macd_sig = macd.ewm(span=5, adjust=False).mean()
 		macd_hist = macd - macd_sig
-		# sinyal kolonlarını hazırla (confluence) - NA değerlerini handle et
-		trend_long = (df["Close"].fillna(0) > df["EMA50"].fillna(0)) & (df["EMA20"].fillna(0) > df["EMA50"].fillna(0)) 
-		trend_short = (df["Close"].fillna(0) < df["EMA50"].fillna(0)) & (df["EMA20"].fillna(0) < df["EMA50"].fillna(0)) 
+		# sinyal kolonlarını hazırla (basitleştirilmiş koşullar) - NA değerlerini handle et
+		trend_long = df["EMA20"].fillna(0) > df["EMA50"].fillna(0) 
+		trend_short = df["EMA20"].fillna(0) < df["EMA50"].fillna(0)
 		vwap_long = df["Close"].fillna(0) > df["VWAP"].fillna(0)
 		vwap_short = df["Close"].fillna(0) < df["VWAP"].fillna(0)
-		mom_long = (df["RSI9"].fillna(50) > 52) & (macd_hist.fillna(0) > 0) & (macd.fillna(0) > macd_sig.fillna(0))
-		mom_short = (df["RSI9"].fillna(50) < 48) & (macd_hist.fillna(0) < 0) & (macd.fillna(0) < macd_sig.fillna(0))
-		price_above_ema20 = df["Close"].fillna(0) > df["EMA20"].fillna(0)
-		price_below_ema20 = df["Close"].fillna(0) < df["EMA20"].fillna(0)
-		# yalnızca kapanmış barlarda değerlendir (son barı hariç tut)
-		sig_buy_raw = (trend_long & vwap_long & mom_long & price_above_ema20)
-		sig_sell_raw = (trend_short & vwap_short & mom_short & price_below_ema20)
+		rsi_long = df["RSI9"].fillna(50) > 50
+		rsi_short = df["RSI9"].fillna(50) < 50
+		macd_long = macd_hist.fillna(0) > 0
+		macd_short = macd_hist.fillna(0) < 0
+		
+		# Basit sinyal mantığı (2/3 koşul yeterli)
+		sig_buy_raw = (trend_long & vwap_long) | (trend_long & rsi_long) | (vwap_long & macd_long)
+		sig_sell_raw = (trend_short & vwap_short) | (trend_short & rsi_short) | (vwap_short & macd_short)
+		
+		# Son barı hariç tut
 		if len(df) > 1:
 			sig_buy_raw.iloc[-1] = False
 			sig_sell_raw.iloc[-1] = False
+		
 		# tekrarlı işaretleri engelle (yalnızca ilk bar - kenar tetikleyici)
 		df["sig_buy"] = sig_buy_raw & (~sig_buy_raw.shift(1).fillna(False))
 		df["sig_sell"] = sig_sell_raw & (~sig_sell_raw.shift(1).fillna(False))
