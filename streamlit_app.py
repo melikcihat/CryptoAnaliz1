@@ -103,15 +103,8 @@ def reindex_fill(df: pd.DataFrame, interval_min: int, bars: int) -> pd.DataFrame
 		pass
 	df.index = idx
 	df = df.sort_index()
-	freq = f"{interval_min}min"
-	# Tam hizalama: son KAPANAN mum zamanına göre floor ve 'bars' kadar geriye git
-	end_round = pd.to_datetime(df.index.max()).floor(freq)
-	new_idx = pd.date_range(end=end_round, periods=bars, freq=freq)
-	df2 = df.reindex(new_idx)
-	# OHLC'yi doldurmayalım; eksik barları atarak gerçek mum boyutlarını koruyalım
-	if df2[["Open", "High", "Low", "Close"]].isna().any().any():
-		df2 = df2.dropna()
-	return df2.tail(bars)
+	# HİÇBİR reindex/doldurma YAPMA - sadece son N barı al
+	return df.tail(bars)
 
 
 def humanize_number(n):
