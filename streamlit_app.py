@@ -417,7 +417,7 @@ def fetch_binance(coin_label: str, interval_min: int, bars: int) -> pd.DataFrame
 		supported = {1: "1m", 3: "3m", 5: "5m", 15: "15m", 30: "30m", 60: "1h", 180: "3h"}
 		if interval_min in supported:
 			url = f"https://api.binance.com/api/v3/klines?symbol={symbol_bn}&interval={supported[interval_min]}&limit={min(bars, 500)}"
-			r = requests.get(url, timeout=10)
+			r = requests.get(url, timeout=5)
 			if r.status_code == 200:
 				data = r.json()
 				if data:
@@ -443,7 +443,7 @@ def fetch_binance(coin_label: str, interval_min: int, bars: int) -> pd.DataFrame
 			limit = max(bars * max(1, interval_min // 15), bars)
 			base_rule = f"{interval_min}min"
 		params = {"symbol": symbol_bn, "interval": intr, "limit": min(1000, max(200, limit))}
-		r = binance_get("/api/v3/klines", params=params, timeout=15, attempts=6)
+		r = binance_get("/api/v3/klines", params=params, timeout=8, attempts=3)
 		if not r or r.status_code != 200:
 			st.sidebar.text(f"Binance API: {r.status_code if r else 'Timeout'}")
 			return None
@@ -509,38 +509,35 @@ def fetch_multi(coin_label: str, interval_min: int, bars: int, safe_mode: bool =
 			("Coinbase-3m", lambda: fetch_coinbase(cb_sym, interval_min, bars)),
 			("Yahoo-3m-Resample", lambda: fetch_yf(yf_ticker, interval_min, bars)),
 		]
-	# 5 ve 15 dakikada Yahoo ve Bitstamp öncelikli, Binance son sırada
+	# 5 ve 15 dakikada Binance 1. sıraya
 	elif interval_min in (5, 15):
 		order = [
+			("Binance-Primary", lambda: fetch_binance(coin_label, interval_min, bars)),
 			("Yahoo-Fast", lambda: fetch_yf(yf_ticker, interval_min, bars)),
 			("Bitstamp-Stable", lambda: fetch_bitstamp(f"{coin_label}usd", interval_min, bars)),
 			("KuCoin", lambda: fetch_kucoin(ku_sym, interval_min, bars)),
 			("Coinbase", lambda: fetch_coinbase(cb_sym, interval_min, bars)),
 			("Kraken", lambda: fetch_kraken(kr_sym, interval_min, bars)),
-			("CoinGecko", lambda: fetch_coingecko(cg_id, interval_min, bars)),
-			("Binance-LastResort", lambda: fetch_binance(coin_label, interval_min, bars)),
 		]
-	# 30/45/60/180 için Bitstamp ve Yahoo öncelik, Binance son
+	# 30/45/60/180 için Binance 1. sıraya
 	elif interval_min in (30, 45, 60, 180):
 		order = [
-			("Bitstamp-Primary", lambda: fetch_bitstamp(f"{coin_label}usd", interval_min, bars)),
-			("Yahoo-Primary", lambda: fetch_yf(yf_ticker, interval_min, bars)),
+			("Binance-Primary", lambda: fetch_binance(coin_label, interval_min, bars)),
+			("Bitstamp-Backup", lambda: fetch_bitstamp(f"{coin_label}usd", interval_min, bars)),
+			("Yahoo-Backup", lambda: fetch_yf(yf_ticker, interval_min, bars)),
 			("KuCoin", lambda: fetch_kucoin(ku_sym, interval_min, bars)),
 			("Coinbase", lambda: fetch_coinbase(cb_sym, interval_min, bars)),
 			("Kraken", lambda: fetch_kraken(kr_sym, interval_min, bars)),
-			("CoinGecko", lambda: fetch_coingecko(cg_id, interval_min, bars)),
-			("Binance-Backup", lambda: fetch_binance(coin_label, interval_min, bars)),
 		]
 	else:
-		# Diğer zaman dilimleri için de güvenilir kaynaklar önce
+		# Diğer zaman dilimleri için Binance 1. sıraya
 		order = [
+			("Binance-Primary", lambda: fetch_binance(coin_label, interval_min, bars)),
 			("Yahoo-Safe", lambda: fetch_yf(yf_ticker, interval_min, bars)),
 			("Bitstamp-Safe", lambda: fetch_bitstamp(f"{coin_label}usd", interval_min, bars)),
 			("KuCoin", lambda: fetch_kucoin(ku_sym, interval_min, bars)),
 			("Coinbase", lambda: fetch_coinbase(cb_sym, interval_min, bars)),
 			("Kraken", lambda: fetch_kraken(kr_sym, interval_min, bars)),
-			("CoinGecko", lambda: fetch_coingecko(cg_id, interval_min, bars)),
-			("Binance-Final", lambda: fetch_binance(coin_label, interval_min, bars)),
 		]
 	# Detaylı hata takibi
 	errors_log = []
@@ -914,7 +911,7 @@ def main():
 					st.error(f"❌ {str(e)[:20]}")
 		
 		safe_mode = st.checkbox("🛡️ Safe Mode", value=False)
-		refresh_sec = st.slider("🔄 Auto Refresh (s)", 2, 30, 5)
+		refresh_sec = st.slider("🔄 Auto Refresh (s)", 1, 10, 2)
 		
 		# Auto-refresh script
 		st.markdown(f"<script>setTimeout(function(){{window.location.reload();}},{refresh_sec*1000});</script>", unsafe_allow_html=True)
