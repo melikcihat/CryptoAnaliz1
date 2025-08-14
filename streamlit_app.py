@@ -755,7 +755,7 @@ def plot_candles(df: pd.DataFrame, x_range=None):
 		margin=dict(l=56, r=36, t=42, b=42),
 		xaxis=dict(
 			showgrid=True, gridcolor="#e5e7eb",
-			tickmode='linear', dtick=1800000, tickformat='%H:%M',
+			tickmode='auto', tickformat='%H:%M',
 			rangeslider=dict(visible=False)
 		),
 		yaxis=dict(
