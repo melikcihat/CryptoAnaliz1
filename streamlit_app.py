@@ -1063,8 +1063,8 @@ def main():
 	except Exception:
 		countdown_str = "--:--"
 
-	# Trend 1 göstergeleri yalnızca seçildiğinde
-	if trend_choice == "Trend 1":
+	# Trend 1 göstergeleri ve sinyaller (test için her zaman)
+	if True:  # trend_choice == "Trend 1":
 		df = df.copy()
 		df["EMA20"] = df["Close"].ewm(span=20, adjust=False).mean()
 		df["EMA50"] = df["Close"].ewm(span=50, adjust=False).mean()
