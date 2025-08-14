@@ -501,6 +501,14 @@ def fetch_multi(coin_label: str, interval_min: int, bars: int, safe_mode: bool =
 			("Bitstamp", lambda: fetch_bitstamp(f"{coin_label}usd", interval_min, bars)),
 			("CoinGecko", lambda: fetch_coingecko(cg_id, interval_min, bars)),
 		]
+	# 3 dakika için Binance direkt öncelikli (3m nativ destekli)
+	elif interval_min == 3:
+		order = [
+			("Binance-3m-Direct", lambda: fetch_binance(coin_label, interval_min, bars)),
+			("KuCoin-3m", lambda: fetch_kucoin(ku_sym, interval_min, bars)),
+			("Coinbase-3m", lambda: fetch_coinbase(cb_sym, interval_min, bars)),
+			("Yahoo-3m-Resample", lambda: fetch_yf(yf_ticker, interval_min, bars)),
+		]
 	# 5 ve 15 dakikada Yahoo ve Bitstamp öncelikli, Binance son sırada
 	elif interval_min in (5, 15):
 		order = [
