@@ -683,7 +683,7 @@ def build_signals(df: pd.DataFrame) -> pd.DataFrame:
 	return df
 
 
-def plot_candles(df: pd.DataFrame, x_range=None):
+def plot_candles(df: pd.DataFrame, interval_min: int = 5, x_range=None):
 	fig = go.Figure()
 	# Tür dönüşümü (OHLC kesinlikle float olsun)
 	df = df.copy()
@@ -705,19 +705,33 @@ def plot_candles(df: pd.DataFrame, x_range=None):
 
 	# X-ekseni otomatik; 24 saatlik hareketli pencere veri ile belirlenecek
 
+	# Timeframe'e göre mum genişliği ayarla
+	if interval_min <= 3:
+		whisker_width = 0.3  # Çok ince mumlar
+		line_width = 1.2
+	elif interval_min <= 5:
+		whisker_width = 0.4  # İnce mumlar
+		line_width = 1.4
+	elif interval_min <= 15:
+		whisker_width = 0.6  # Normal mumlar
+		line_width = 1.6
+	else:
+		whisker_width = 0.8  # Kalın mumlar
+		line_width = 1.8
+
 	fig.add_trace(go.Candlestick(
 		x=df.index,
 		open=df["Open"], high=df["High"], low=df["Low"], close=df["Close"],
 		name="Mum",
 		increasing=dict(
-			line=dict(color="#10b981", width=1.8),
+			line=dict(color="#10b981", width=line_width),
 			fillcolor="rgba(16,185,129,0.55)"
 		),
 		decreasing=dict(
-			line=dict(color="#ef4444", width=1.8),
+			line=dict(color="#ef4444", width=line_width),
 			fillcolor="rgba(239,68,68,0.55)"
 		),
-		whiskerwidth=0.6,
+		whiskerwidth=whisker_width,
 		opacity=0.98
 	))
 
@@ -759,15 +773,37 @@ def plot_candles(df: pd.DataFrame, x_range=None):
 		start_time, end_time = x_range
 		time_diff_hours = (end_time - start_time).total_seconds() / 3600
 		
-		# Zaman aralığına göre tick frequency ayarla
-		if time_diff_hours <= 6:  # 6 saat için
-			dtick = 15 * 60 * 1000  # 15 dakika tick
-		elif time_diff_hours <= 24:  # 24 saat için  
-			dtick = 30 * 60 * 1000  # 30 dakika tick
-		elif time_diff_hours <= 72:  # 3 gün için
-			dtick = 2 * 60 * 60 * 1000  # 2 saat tick
-		else:  # Daha uzun sürelerde
-			dtick = 24 * 60 * 60 * 1000  # 1 gün tick
+		# Timeframe ve zaman aralığına göre tick frequency ayarla
+		if interval_min <= 3:  # 1-3 dakika mumları
+			if time_diff_hours <= 6:
+				dtick = 30 * 60 * 1000  # 30 dakika tick
+			elif time_diff_hours <= 24:
+				dtick = 2 * 60 * 60 * 1000  # 2 saat tick
+			else:
+				dtick = 4 * 60 * 60 * 1000  # 4 saat tick
+		elif interval_min <= 5:  # 5 dakika mumları
+			if time_diff_hours <= 6:
+				dtick = 60 * 60 * 1000  # 1 saat tick
+			elif time_diff_hours <= 24:
+				dtick = 3 * 60 * 60 * 1000  # 3 saat tick
+			else:
+				dtick = 6 * 60 * 60 * 1000  # 6 saat tick
+		elif interval_min <= 15:  # 15 dakika mumları
+			if time_diff_hours <= 6:
+				dtick = 60 * 60 * 1000  # 1 saat tick
+			elif time_diff_hours <= 24:
+				dtick = 4 * 60 * 60 * 1000  # 4 saat tick
+			else:
+				dtick = 12 * 60 * 60 * 1000  # 12 saat tick
+		else:  # 30+ dakika mumları
+			if time_diff_hours <= 6:
+				dtick = 2 * 60 * 60 * 1000  # 2 saat tick
+			elif time_diff_hours <= 24:
+				dtick = 6 * 60 * 60 * 1000  # 6 saat tick
+			elif time_diff_hours <= 72:
+				dtick = 12 * 60 * 60 * 1000  # 12 saat tick
+			else:
+				dtick = 24 * 60 * 60 * 1000  # 1 gün tick
 			
 		fig.update_xaxes(
 			range=x_range,
@@ -775,9 +811,18 @@ def plot_candles(df: pd.DataFrame, x_range=None):
 			tickformat="%H:%M" if time_diff_hours <= 24 else "%m/%d %H:%M"
 		)
 	else:
-		# Varsayılan tick ayarları
+		# Varsayılan tick ayarları - timeframe'e göre
+		if interval_min <= 3:
+			default_dtick = 2 * 60 * 60 * 1000  # 2 saat
+		elif interval_min <= 5:
+			default_dtick = 3 * 60 * 60 * 1000  # 3 saat
+		elif interval_min <= 15:
+			default_dtick = 4 * 60 * 60 * 1000  # 4 saat
+		else:
+			default_dtick = 6 * 60 * 60 * 1000  # 6 saat
+			
 		fig.update_xaxes(
-			dtick=30 * 60 * 1000,  # 30 dakika
+			dtick=default_dtick,
 			tickformat="%H:%M"
 		)
 	
@@ -1130,9 +1175,9 @@ def main():
 		now_local = pd.Timestamp.now(tz=ZoneInfo(LOCAL_TZ)).tz_localize(None)
 		x_end = now_local
 		x_start = x_end - pd.Timedelta(hours=req_hours)
-		plot_candles(df, x_range=[x_start, x_end])
+		plot_candles(df, interval_min, x_range=[x_start, x_end])
 	else:
-		plot_candles(df)
+		plot_candles(df, interval_min)
 
 
 if __name__ == "__main__":
