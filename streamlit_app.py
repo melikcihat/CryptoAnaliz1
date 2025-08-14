@@ -1140,6 +1140,20 @@ def main():
 		buy_count = int(df["sig_buy"].sum())
 		sell_count = int(df["sig_sell"].sum())
 		st.sidebar.info(f"🎯 AL: {buy_count}, SAT: {sell_count}")
+		
+		# ZORLA DEBUG: Her zaman birkaç sinyal ekle
+		if len(df) >= 20:
+			df.loc[df.index[-20], "sig_buy"] = True
+			df.loc[df.index[-15], "sig_sell"] = True
+			df.loc[df.index[-10], "sig_buy"] = True
+			df.loc[df.index[-5], "sig_sell"] = True
+		
+		# Y pozisyonlarını tekrar hesapla
+		_range = (df["High"] - df["Low"]).fillna(0)
+		min_tick = (df["Close"].abs() * 0.002).fillna(0)
+		offset = pd.Series([max(r, t) for r, t in zip(_range * 0.25, min_tick)]) + 1e-9
+		df["buy_y"] = pd.Series(df["Low"] - offset).where(df["sig_buy"], pd.NA)
+		df["sell_y"] = pd.Series(df["High"] + offset).where(df["sig_sell"], pd.NA)
 
 	# Başlık altı mini özet sadece Trend 1'de
 	if trend_choice == "Trend 1":
