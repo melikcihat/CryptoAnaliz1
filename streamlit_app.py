@@ -742,6 +742,47 @@ def plot_candles(df: pd.DataFrame, interval_min: int = 5, x_range=None):
 			text=f"{last_price:.2f}", showarrow=False,
 			font=dict(size=12, color="#111827"), bgcolor="#e5e7eb", bordercolor="#9ca3af", borderwidth=1,
 			align="left")
+		
+		# Gerçek zamanlı geri sayım ve canlı mum
+		now = pd.Timestamp.now()
+		last_candle_time = df.index[-1]
+		
+		# Timeframe'e göre sonraki mum zamanı
+		next_candle_time = last_candle_time + pd.Timedelta(minutes=interval_min)
+		
+		# Geri sayım hesaplama
+		remaining_seconds = int((next_candle_time - now).total_seconds())
+		if remaining_seconds > 0:
+			minutes, seconds = divmod(remaining_seconds, 60)
+			countdown_text = f"{minutes:02d}:{seconds:02d}"
+			
+			# Geri sayımı Y ekseninde göster (son mum hizasında)
+			fig.add_annotation(
+				x=last_candle_time,
+				y=last_price,
+				text=f"⏱️ {countdown_text}",
+				showarrow=False,
+				font=dict(size=14, color="#dc2626"),
+				bgcolor="rgba(220, 38, 38, 0.1)",
+				bordercolor="#dc2626",
+				borderwidth=1
+			)
+			
+			# Canlı mum göstergesi (son mumun üzerinde)
+			if 'ws_kline' in st.session_state:
+				ws_data = st.session_state['ws_kline']
+				if not ws_data.get('isClosed', True):  # Mum henüz açık
+					live_price = ws_data.get('c', last_price)
+					fig.add_annotation(
+						x=last_candle_time,
+						y=live_price,
+						text=f"🔴 {live_price:.2f}",
+						showarrow=False,
+						font=dict(size=12, color="#ef4444"),
+						bgcolor="rgba(239, 68, 68, 0.1)",
+						bordercolor="#ef4444",
+						borderwidth=1
+					)
 
 	# Tüm overlayler kaldırıldı (EMA, VWAP, Bollinger Bands)
 
@@ -941,7 +982,7 @@ def main():
 					st.error(f"❌ {str(e)[:20]}")
 		
 		safe_mode = st.checkbox("🛡️ Safe Mode", value=False)
-		refresh_sec = st.slider("🔄 Auto Refresh (s)", 1, 10, 2)
+		refresh_sec = st.slider("🔄 Auto Refresh (s)", 1, 5, 1)
 		
 		# Auto-refresh script
 		st.markdown(f"<script>setTimeout(function(){{window.location.reload();}},{refresh_sec*1000});</script>", unsafe_allow_html=True)
@@ -1014,6 +1055,9 @@ def main():
 		</div>
 		''', unsafe_allow_html=True)
 
+	# WebSocket bağlantısını başlat (gerçek zamanlı veri için)
+	start_binance_ws(coin_label, interval_min)
+	
 	df, source = fetch_multi(coin_label, interval_min, bars, safe_mode=safe_mode)
 	if df is None or df.empty:
 		# Güvenli mod ile tekrar dene
@@ -1092,6 +1136,25 @@ def main():
 
 
 
+	# Geri sayım ve canlı durum
+	st.sidebar.markdown("---")
+	st.sidebar.markdown("### ⏱️ Geri Sayım")
+	
+	# WebSocket durumu
+	ws_status = "🟢 Aktif" if 'ws_kline' in st.session_state else "🔴 Kapalı"
+	st.sidebar.info(f"WebSocket: {ws_status}")
+	
+	# Geri sayım
+	st.sidebar.metric("Sonraki Mum", countdown_str)
+	
+	# Canlı fiyat (WebSocket'ten)
+	if 'ws_kline' in st.session_state:
+		ws_data = st.session_state['ws_kline']
+		live_price = ws_data.get('c', 0)
+		st.sidebar.metric("Canlı Fiyat", f"${live_price:.2f}")
+	
+	st.sidebar.markdown("---")
+	
 	# Kaynak ve veri sağlığı
 	st.sidebar.caption(f"Kaynak: {source}")
 	with st.expander("Son 5 Bar (OHLC)"):
