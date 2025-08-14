@@ -742,13 +742,27 @@ def plot_candles(df: pd.DataFrame, x_range=None):
 
 	# Al/Sat okları (varsa)
 	if "buy_y" in df.columns:
-		fig.add_trace(go.Scatter(x=df.index, y=df["buy_y"], mode="markers+text", name="AL",
-			marker=dict(symbol="triangle-up", size=14, color="#16a34a"),
-			textposition="bottom center"))
+		buy_data = df["buy_y"].dropna()
+		if not buy_data.empty:
+			fig.add_trace(go.Scatter(x=buy_data.index, y=buy_data, mode="markers", name="AL",
+				marker=dict(symbol="triangle-up", size=16, color="#16a34a"),
+				showlegend=True))
 	if "sell_y" in df.columns:
-		fig.add_trace(go.Scatter(x=df.index, y=df["sell_y"], mode="markers+text", name="SAT",
-			marker=dict(symbol="triangle-down", size=14, color="#dc2626"),
-			textposition="top center"))
+		sell_data = df["sell_y"].dropna()
+		if not sell_data.empty:
+			fig.add_trace(go.Scatter(x=sell_data.index, y=sell_data, mode="markers", name="SAT",
+				marker=dict(symbol="triangle-down", size=16, color="#dc2626"),
+				showlegend=True))
+	
+	# DEBUG: Her zaman test sinyalleri ekle
+	if len(df) >= 5:
+		test_idx = df.index[-3]  # 3 bar önce
+		test_low = float(df["Low"].iloc[-3])
+		test_high = float(df["High"].iloc[-3])
+		fig.add_trace(go.Scatter(x=[test_idx], y=[test_low - 50], mode="markers", name="TEST-AL",
+			marker=dict(symbol="triangle-up", size=20, color="#00ff00")))
+		fig.add_trace(go.Scatter(x=[test_idx], y=[test_high + 50], mode="markers", name="TEST-SAT", 
+			marker=dict(symbol="triangle-down", size=20, color="#ff0000")))
 
 
 	fig.update_layout(
