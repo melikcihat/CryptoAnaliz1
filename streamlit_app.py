@@ -729,30 +729,9 @@ def plot_candles(df: pd.DataFrame, x_range=None):
 			font=dict(size=12, color="#111827"), bgcolor="#e5e7eb", bordercolor="#9ca3af", borderwidth=1,
 			align="left")
 
-	# Overlays: EMA20/EMA50, VWAP, Bollinger
-	if all(c in df.columns for c in ["EMA20", "EMA50"]):
-		fig.add_trace(go.Scatter(x=df.index, y=df["EMA20"], name="EMA20", mode="lines", line=dict(width=1.6, color="#0ea5e9")))
-		fig.add_trace(go.Scatter(x=df.index, y=df["EMA50"], name="EMA50", mode="lines", line=dict(width=1.6, color="#a855f7")))
-	if "VWAP" in df.columns:
-		fig.add_trace(go.Scatter(x=df.index, y=df["VWAP"], name="VWAP", mode="lines", line=dict(width=1.2, color="#f97316")))
-	if all(c in df.columns for c in ["BB_upper", "BB_mid", "BB_lower"]):
-		fig.add_trace(go.Scatter(x=df.index, y=df["BB_upper"], name="BB Üst", mode="lines", line=dict(width=1, color="#94a3b8")))
-		fig.add_trace(go.Scatter(x=df.index, y=df["BB_mid"], name="BB Orta", mode="lines", line=dict(width=1, color="#cbd5e1")))
-		fig.add_trace(go.Scatter(x=df.index, y=df["BB_lower"], name="BB Alt", mode="lines", line=dict(width=1, color="#94a3b8")))
+	# Tüm overlayler kaldırıldı (EMA, VWAP, Bollinger Bands)
 
-	# Al/Sat okları (varsa)
-	if "buy_y" in df.columns:
-		buy_data = df["buy_y"].dropna()
-		if not buy_data.empty:
-			fig.add_trace(go.Scatter(x=buy_data.index, y=buy_data, mode="markers", name="AL",
-				marker=dict(symbol="triangle-up", size=16, color="#16a34a"),
-				showlegend=True))
-	if "sell_y" in df.columns:
-		sell_data = df["sell_y"].dropna()
-		if not sell_data.empty:
-			fig.add_trace(go.Scatter(x=sell_data.index, y=sell_data, mode="markers", name="SAT",
-				marker=dict(symbol="triangle-down", size=16, color="#dc2626"),
-				showlegend=True))
+	# Al/Sat okları kaldırıldı
 	
 
 
@@ -1063,110 +1042,10 @@ def main():
 	except Exception:
 		countdown_str = "--:--"
 
-	# DEBUG: Test mesajı
-	st.sidebar.error("🔴 DEBUG: Kod burada çalışıyor!")
-	
-	# Trend 1 göstergeleri ve sinyaller (test için her zaman)
-	if True:  # trend_choice == "Trend 1":
-		df = df.copy()
-		df["EMA20"] = df["Close"].ewm(span=20, adjust=False).mean()
-		df["EMA50"] = df["Close"].ewm(span=50, adjust=False).mean()
-		# VWAP (pencere boyunca)
-		typical = (df["High"] + df["Low"] + df["Close"]) / 3.0
-		cum_tp_vol = (typical * df["Volume"]).cumsum()
-		cum_vol = df["Volume"].cumsum().replace(0, pd.NA)
-		df["VWAP"] = (cum_tp_vol / cum_vol)
-		# BB 20,2
-		ma = df["Close"].rolling(window=20, min_periods=1).mean()
-		std = df["Close"].rolling(window=20, min_periods=1).std().fillna(0)
-		df["BB_upper"] = ma + 2 * std
-		df["BB_lower"] = ma - 2 * std
-		df["BB_mid"] = ma
-		# RSI9
-		delta = df["Close"].diff()
-		gain = (delta.where(delta > 0, 0)).rolling(window=9, min_periods=1).mean()
-		loss = (-delta.where(delta < 0, 0)).rolling(window=9, min_periods=1).mean()
-		rs = gain / loss.replace(0, float('nan'))
-		df["RSI9"] = (100 - (100 / (1 + rs))).fillna(50)
-		# MACD 8,21,5
-		ema_fast = df["Close"].ewm(span=8, adjust=False).mean()
-		ema_slow = df["Close"].ewm(span=21, adjust=False).mean()
-		macd = ema_fast - ema_slow
-		macd_sig = macd.ewm(span=5, adjust=False).mean()
-		macd_hist = macd - macd_sig
-		# sinyal kolonlarını hazırla (basitleştirilmiş koşullar) - NA değerlerini handle et
-		trend_long = df["EMA20"].fillna(0) > df["EMA50"].fillna(0) 
-		trend_short = df["EMA20"].fillna(0) < df["EMA50"].fillna(0)
-		vwap_long = df["Close"].fillna(0) > df["VWAP"].fillna(0)
-		vwap_short = df["Close"].fillna(0) < df["VWAP"].fillna(0)
-		rsi_long = df["RSI9"].fillna(50) > 50
-		rsi_short = df["RSI9"].fillna(50) < 50
-		macd_long = macd_hist.fillna(0) > 0
-		macd_short = macd_hist.fillna(0) < 0
-		
-		# Basit sinyal mantığı (2/3 koşul yeterli)
-		sig_buy_raw = (trend_long & vwap_long) | (trend_long & rsi_long) | (vwap_long & macd_long)
-		sig_sell_raw = (trend_short & vwap_short) | (trend_short & rsi_short) | (vwap_short & macd_short)
-		
-		# Son barı hariç tut
-		if len(df) > 1:
-			sig_buy_raw.iloc[-1] = False
-			sig_sell_raw.iloc[-1] = False
-		
-		# tekrarlı işaretleri engelle (yalnızca ilk bar - kenar tetikleyici)
-		df["sig_buy"] = sig_buy_raw & (~sig_buy_raw.shift(1).fillna(False))
-		df["sig_sell"] = sig_sell_raw & (~sig_sell_raw.shift(1).fillna(False))
-		
-		# DEBUG: Gerçek sinyal mantığını test et
-		if len(df) >= 10:
-			# EMA kesişimi sinyalleri
-			ema_cross_up = (df["EMA20"] > df["EMA50"]) & (df["EMA20"].shift(1) <= df["EMA50"].shift(1))
-			ema_cross_down = (df["EMA20"] < df["EMA50"]) & (df["EMA20"].shift(1) >= df["EMA50"].shift(1))
-			
-			# Basit AL/SAT mantığı
-			df["sig_buy"] = df["sig_buy"] | ema_cross_up
-			df["sig_sell"] = df["sig_sell"] | ema_cross_down
-			
-			# Son 20 bar'da zorla sinyal ekle
-			if len(df) >= 20:
-				df["sig_buy"].iloc[-15] = True  # 15 bar önce AL
-				df["sig_sell"].iloc[-8] = True   # 8 bar önce SAT
-		
-		# Mumların başlangıç/bitiş noktalarına göre, ATR/price tabanlı dinamik offset ile konumlandır
-		_range = (df["High"] - df["Low"]).fillna(0)
-		min_tick = (df["Close"].abs() * 0.002).fillna(0)  # ~0.2%
-		offset = pd.Series([max(r, t) for r, t in zip(_range * 0.25, min_tick)]) + 1e-9
-		df["buy_y"] = pd.Series(df["Low"] - offset).where(df["sig_buy"], pd.NA)
-		df["sell_y"] = pd.Series(df["High"] + offset).where(df["sig_sell"], pd.NA)
-		
-		# DEBUG: Sinyal sayısını sidebar'da göster
-		buy_count = int(df["sig_buy"].sum())
-		sell_count = int(df["sig_sell"].sum())
-		st.sidebar.info(f"🎯 AL: {buy_count}, SAT: {sell_count}")
 
-	# Başlık altı mini özet sadece Trend 1'de
-	if trend_choice == "Trend 1":
-		colA, colB, colC, colD, colE = st.columns(5)
-		with colA:
-			ema20_val = df["EMA20"].iloc[-1] if pd.notna(df["EMA20"].iloc[-1]) else 0
-			ema50_val = df["EMA50"].iloc[-1] if pd.notna(df["EMA50"].iloc[-1]) else 0
-			st.metric("Trend (EMA20/50)", "Yukarı" if ema20_val > ema50_val else "Aşağı")
-		with colB:
-			close_val = df["Close"].iloc[-1] if pd.notna(df["Close"].iloc[-1]) else 0
-			vwap_val = df["VWAP"].iloc[-1] if pd.notna(df["VWAP"].iloc[-1]) else 0
-			st.metric("VWAP", "Üst" if close_val > vwap_val else "Alt")
-		with colC:
-			rsi_val = df["RSI9"].iloc[-1] if pd.notna(df["RSI9"].iloc[-1]) else 50
-			st.metric("RSI(9)", f"{float(rsi_val):.1f}")
-		with colD:
-			macd_hist_val = macd_hist.iloc[-1] if pd.notna(macd_hist.iloc[-1]) else 0
-			st.metric("MACD Hist", f"{float(macd_hist_val):.4f}")
-		with colE:
-			bb_upper = df["BB_upper"].iloc[-1] if pd.notna(df["BB_upper"].iloc[-1]) else 0
-			bb_lower = df["BB_lower"].iloc[-1] if pd.notna(df["BB_lower"].iloc[-1]) else 0
-			bb_mid = df["BB_mid"].iloc[-1] if pd.notna(df["BB_mid"].iloc[-1]) else 1
-			bb_width = float((bb_upper - bb_lower) / bb_mid) if bb_mid != 0 else 0.0
-			st.metric("BB Width", f"{bb_width*100:.2f}%")
+
+
+
 
 	# Kaynak ve veri sağlığı
 	st.sidebar.caption(f"Kaynak: {source}")
@@ -1177,33 +1056,10 @@ def main():
 		if bad_hi or bad_lo:
 			st.warning(f"Anomali: High/Low tutarsız (High<{chr(8226)}max OC: {bad_hi}, Low>{chr(8226)}min OC: {bad_lo}). Kaynak verisi sorunlu olabilir.")
 
-	# Al/Sat okları grafiğe ekleme
-	if trend_choice == "Trend 1":
-		try:
-			# ok konumları hesaplanmışsa çiz
-			if {"EMA20","EMA50","VWAP","RSI9"}.issubset(df.columns):
-				ema_fast = df["Close"].ewm(span=8, adjust=False).mean()
-				ema_slow = df["Close"].ewm(span=21, adjust=False).mean()
-				macd = ema_fast - ema_slow
-				macd_sig = macd.ewm(span=5, adjust=False).mean()
-				macd_hist = macd - macd_sig
-				trend_long = (df["Close"].fillna(0) > df["EMA50"].fillna(0)) & (df["EMA20"].fillna(0) > df["EMA50"].fillna(0)) 
-				trend_short = (df["Close"].fillna(0) < df["EMA50"].fillna(0)) & (df["EMA20"].fillna(0) < df["EMA50"].fillna(0)) 
-				vwap_long = df["Close"].fillna(0) > df["VWAP"].fillna(0)
-				vwap_short = df["Close"].fillna(0) < df["VWAP"].fillna(0)
-				mom_long = (df["RSI9"].fillna(50) > 52) & (macd_hist.fillna(0) > 0) & (macd.fillna(0) > macd_sig.fillna(0))
-				mom_short = (df["RSI9"].fillna(50) < 48) & (macd_hist.fillna(0) < 0) & (macd.fillna(0) < macd_sig.fillna(0))
-				price_above_ema20 = df["Close"].fillna(0) > df["EMA20"].fillna(0)
-				price_below_ema20 = df["Close"].fillna(0) < df["EMA20"].fillna(0)
-				sig_buy = (trend_long & vwap_long & mom_long & price_above_ema20)
-				sig_sell = (trend_short & vwap_short & mom_short & price_below_ema20)
-				# Bu kısım kaldırıldı - sinyal hesaplaması yukarıda yapılıyor
-				# not: işaretler plot_candles içinde eklenir – burada sadece hesaplandı
-		except Exception:
-			pass
 
-	# TradingView benzeri Trading Signals
-	if trend_choice == "Trend 1" and not df.empty:
+
+	# Trading Signals kaldırıldı
+	if False:
 		with st.sidebar:
 			st.markdown("---")
 			st.markdown("### 🎯 Trading Signals")
