@@ -1107,12 +1107,23 @@ def main():
 		# tekrarlı işaretleri engelle (yalnızca ilk bar - kenar tetikleyici)
 		df["sig_buy"] = sig_buy_raw & (~sig_buy_raw.shift(1).fillna(False))
 		df["sig_sell"] = sig_sell_raw & (~sig_sell_raw.shift(1).fillna(False))
+		
+		# DEBUG: Zorla test sinyalleri ekle (geçici)
+		if len(df) >= 10:
+			df["sig_buy"].iloc[-10] = True  # 10 bar önce AL
+			df["sig_sell"].iloc[-5] = True  # 5 bar önce SAT
+		
 		# Mumların başlangıç/bitiş noktalarına göre, ATR/price tabanlı dinamik offset ile konumlandır
 		_range = (df["High"] - df["Low"]).fillna(0)
 		min_tick = (df["Close"].abs() * 0.002).fillna(0)  # ~0.2%
 		offset = pd.Series([max(r, t) for r, t in zip(_range * 0.25, min_tick)]) + 1e-9
 		df["buy_y"] = pd.Series(df["Low"] - offset).where(df["sig_buy"], pd.NA)
 		df["sell_y"] = pd.Series(df["High"] + offset).where(df["sig_sell"], pd.NA)
+		
+		# DEBUG: Sinyal sayısını sidebar'da göster
+		buy_count = int(df["sig_buy"].sum())
+		sell_count = int(df["sig_sell"].sum())
+		st.sidebar.info(f"🎯 AL: {buy_count}, SAT: {sell_count}")
 
 	# Başlık altı mini özet sadece Trend 1'de
 	if trend_choice == "Trend 1":
